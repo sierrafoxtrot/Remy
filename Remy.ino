@@ -30,6 +30,21 @@ int switch2_3Pin = 9;
 int switch2_2Pin = 8;
 int switch2_1Pin = 7;
 
+enum
+{
+    STATE_UNDEFINED = 0,
+    STATE_CLOSED    = 1,
+    STATE_CLOSING   = 2,
+    STATE_OPENING   = 3,
+    STATE_OPEN      = 4,
+    STATE_MAX       = STATE_OPEN
+};
+
+int gateState = STATE_CLOSED;
+
+unsigned long travelTimerStart = 0;
+unsigned long travelTime  = 20000L;
+
 int Switch1()
 {
     return ((digitalRead(switch1_3Pin) ? 4 : 0) +
@@ -46,32 +61,36 @@ int Switch2()
 
 void setup()
 {
-#if 1
-  //start serial connection
+
+    // start serial connection
     Serial.begin(9600);
-#endif
-    //print out the value of the pushbutton
-    Serial.println("Hello World. Version 1\n");
 
-
+    // Signal from Merlin remote control receiver.
+    // Open collector device is attached so provide pull-up
     pinMode(remotePin, INPUT_PULLUP);
+
+    // Signal from photoelectric (magic eye) sensor
+    // Open collector device is attached so provide pull-up
     pinMode(pePin, INPUT_PULLUP);
+
+    // Motor relay control outputs
     pinMode(relay2Pin, OUTPUT);
     pinMode(relay1Pin, OUTPUT);
 
+    // Config switch bank #1
     pinMode(switch1_3Pin, INPUT_PULLUP);
     pinMode(switch1_2Pin, INPUT_PULLUP);
     pinMode(switch1_1Pin, INPUT_PULLUP);
 
+    // Config switch bank #1
     pinMode(switch2_3Pin, INPUT_PULLUP);
     pinMode(switch2_2Pin, INPUT_PULLUP);
     pinMode(switch2_1Pin, INPUT_PULLUP);
-//    pinMode(13, OUTPUT);
 }
 
 void loop()
 {
-    Serial.print("Hello World. Version 1.");
+    Serial.print("Remy Version 1.");
     Serial.print(digitalRead(switch1_3Pin));
     Serial.print(" :  ");
     Serial.print(digitalRead(switch2_1Pin));
@@ -87,40 +106,75 @@ void loop()
     Serial.println();
 
     delay(500);
-#if 0
-    digitalWrite(relay1Pin, digitalRead(switch1_3Pin));
 
-//    digitalWrite(relay1Pin, HIGH);
+    switch (gateState)
+    {
+    STATE_CLOSED:
+
+        break;
+
+    STATE_CLOSING:
+        break;
+
+    STATE_OPENING:
+
+        break;
+
+    STATE_OPEN:
+        break;
+
+    default:
+        Serial.println("INVALID STATE!!!!");
+        // gateState = STATE_
+    };
+}
+
+void restartTimer()
+{
+    Serial.println("restartTimer");
+    travelTimerStart = millis();
+}
+
+bool timerExpired()
+{
+    return (millis() - travelTimerStart > travelTime);
+}
+
+void driveMotorForward()
+{
+    Serial.println("driveMotorForward");
+    digitalWrite(relay1Pin, HIGH);
     digitalWrite(relay2Pin, LOW);
-    delay(500);
+}
 
-//    digitalWrite(relay1Pin, LOW);
+void driveMotorReverse()
+{
+    Serial.println("driveMotorReverse");
+    digitalWrite(relay1Pin, LOW);
     digitalWrite(relay2Pin, HIGH);
-    delay(2000);
-#endif
+}
 
-#if 1
+void driveMotorStop()
+{
+    Serial.println("driveMotorStop");
+    digitalWrite(relay1Pin, LOW);
+    digitalWrite(relay2Pin, LOW);
+}
 
-    digitalWrite(relay1Pin, digitalRead(switch1_3Pin));
-    digitalWrite(relay2Pin, digitalRead(switch2_1Pin));
-#endif
+void startOpening()
+{
+    Serial.println("startOpening");
+    restartTimer();
+    driveMotorForward();
 
-#if 0
-            //read the pushbutton value into a variable
-            int sensorVal = digitalRead(2);
+    gateState = STATE_OPENING;
+}
 
-            //print out the value of the pushbutton
-            Serial.println(sensorVal);
+void startClosing()
+{
+    Serial.println("startClosing");
+    restartTimer();
+    driveMotorReverse();
 
-            // Keep in mind the pullup means the pushbutton's
-            // logic is inverted. It goes HIGH when it's open,
-            // and LOW when it's pressed. Turn on pin 13 when the
-            // button's pressed, and off when it's not:
-            if (sensorVal == HIGH) {
-                digitalWrite(13, LOW);
-            }
-            else {
-                digitalWrite(13, HIGH);
-            }
-#endif
+    gateState = STATE_CLOSING;
 }
