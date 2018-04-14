@@ -41,8 +41,10 @@ enum STATE
 
 STATE gateState = STATE_OPEN;
 
+int mainLoopPeriodicity = 750;
+
 unsigned long travelTimerStart = 0;
-unsigned long travelTime  = 5000L;
+unsigned long travelTimes[] = {4000, 8000, 12000, 16000, 20000, 24000, 28000, 32000};
 
 int Switch1()
 {
@@ -103,10 +105,15 @@ void loop()
     Serial.print(remotePressed(), HEX);
     Serial.print(" :  ");
     Serial.print(peClear(), HEX);
+    Serial.print(" :  ");
+    Serial.print(travelOpenTime());
+    Serial.print(" :  ");
+    Serial.print(travelCloseTime());
 
-    /****************** DELETE ME FOR PROD ****************/
-    delay(750);
-    /****************** DELETE ME FOR PROD ****************/
+
+
+    delay(mainLoopPeriodicity);
+
 
     Serial.println();
 
@@ -181,6 +188,16 @@ bool remotePressed()
     return !digitalRead(remotePin);
 }
 
+unsigned long travelOpenTime()
+{
+    return travelTimes[Switch1()];
+}
+
+unsigned long travelCloseTime()
+{
+    return travelTimes[Switch2()];
+}
+
 void restartTimer()
 {
     Serial.println("restartTimer");
@@ -189,7 +206,23 @@ void restartTimer()
 
 bool timerExpired()
 {
-    return (millis() - travelTimerStart > travelTime);
+    bool result = true;
+
+    switch (gateState)
+    {
+    case STATE_OPENING:
+        result = (millis() - travelTimerStart > travelOpenTime());
+        break;
+    case STATE_CLOSING:
+        result = (millis() - travelTimerStart > travelCloseTime());
+        break;
+    default:
+        Serial.println("INVALID TIMER STATE");
+        result = true;
+        break;
+    }
+
+    return result;
 }
 
 void driveMotorForward()
