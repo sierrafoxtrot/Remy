@@ -3,18 +3,18 @@
     Remy - Gate Controller
     Copyright (C) 2018 Scott Finneran
 
-    Windsock is free software: you can redistribute it and/or modify
+    Remy is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
     (at your option) any later version.
 
-    Windsock is distributed in the hope that it will be useful,
+    Remy is distributed in the hope that it will be useful,
     but WITHOUT ANY WARRANTY; without even the implied warranty of
     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
     GNU General Public License for more details.
 
     You should have received a copy of the GNU General Public License
-    along with Windsock.  If not, see <http://www.gnu.org/licenses/>.
+    along with Remy.  If not, see <http://www.gnu.org/licenses/>.
 
  */
 
@@ -30,20 +30,19 @@ int switch2_3Pin = 9;
 int switch2_2Pin = 8;
 int switch2_1Pin = 7;
 
-enum
+enum STATE
 {
-    STATE_UNDEFINED = 0,
+    STATE_INVALID   = 0,
     STATE_CLOSED    = 1,
     STATE_CLOSING   = 2,
     STATE_OPENING   = 3,
     STATE_OPEN      = 4,
-    STATE_MAX       = STATE_OPEN
 };
 
-int gateState = STATE_CLOSED;
+STATE gateState = STATE_OPEN;
 
 unsigned long travelTimerStart = 0;
-unsigned long travelTime  = 20000L;
+unsigned long travelTime  = 5000L;
 
 int Switch1()
 {
@@ -74,8 +73,8 @@ void setup()
     pinMode(pePin, INPUT_PULLUP);
 
     // Motor relay control outputs
-    pinMode(relay2Pin, OUTPUT);
     pinMode(relay1Pin, OUTPUT);
+    pinMode(relay2Pin, OUTPUT);
 
     // Config switch bank #1
     pinMode(switch1_3Pin, INPUT_PULLUP);
@@ -91,42 +90,95 @@ void setup()
 void loop()
 {
     Serial.print("Remy Version 1.");
-    Serial.print(digitalRead(switch1_3Pin));
+    Serial.print(gateState);
     Serial.print(" :  ");
-    Serial.print(digitalRead(switch2_1Pin));
+    Serial.print(digitalRead(relay1Pin), HEX);
+    Serial.print(" :  ");
+    Serial.print(digitalRead(relay2Pin), HEX);
     Serial.print(" :  ");
     Serial.print(Switch1(), HEX);
     Serial.print(" :  ");
     Serial.print(Switch2(), HEX);
     Serial.print(" :  ");
-    Serial.print(digitalRead(remotePin), HEX);
+    Serial.print(remotePressed(), HEX);
     Serial.print(" :  ");
-    Serial.print(digitalRead(pePin), HEX);
+    Serial.print(peClear(), HEX);
+
+    /****************** DELETE ME FOR PROD ****************/
+    delay(750);
+    /****************** DELETE ME FOR PROD ****************/
 
     Serial.println();
 
-    delay(500);
-
     switch (gateState)
     {
-    STATE_CLOSED:
-
+    case STATE_CLOSED:
+        // If we see an edge on the control switch (remote or local), start opening.
+        if (remotePressed())
+        {
+            startOpening();
+        }
         break;
 
-    STATE_CLOSING:
+    case STATE_CLOSING:
+        // Run until timer expires. If PE indicates an obstruction, start opening.
+        if (!peClear())
+        {
+            driveMotorStop();
+            delay(1000); // Delay before throwing into reverse
+            Serial.println("OBSTRUCTION - Opening");
+            startOpening();
+        }
+
+        if (timerExpired())
+        {
+            finishClosing();
+        }
+
+        if (remotePressed())
+        {
+            startOpening();
+            Serial.println("INTERRUPTION - Opening");
+        }
         break;
 
-    STATE_OPENING:
+    case STATE_OPENING:
+        // Run until timer expires. PE has no effect on opening.
+        if (timerExpired())
+        {
+            finishOpening();
+        }
 
+        if (remotePressed())
+        {
+            startClosing();
+            Serial.println("INTERRUPTION - Closing");
+        }
         break;
 
-    STATE_OPEN:
+    case STATE_OPEN:
+        if (peClear() && remotePressed())
+        {
+            startClosing();
+        }
         break;
 
     default:
-        Serial.println("INVALID STATE!!!!");
+        Serial.print("INVALID STATE!!!!  ");
+        Serial.println(gateState, HEX);
         // gateState = STATE_
+        break;
     };
+}
+
+bool peClear()
+{
+    return digitalRead(pePin);
+}
+
+bool remotePressed()
+{
+    return !digitalRead(remotePin);
 }
 
 void restartTimer()
@@ -170,6 +222,15 @@ void startOpening()
     gateState = STATE_OPENING;
 }
 
+void finishOpening()
+{
+    Serial.println("finishOpening");
+    //restartTimer();
+    driveMotorStop();
+
+    gateState = STATE_OPEN;
+}
+
 void startClosing()
 {
     Serial.println("startClosing");
@@ -177,4 +238,13 @@ void startClosing()
     driveMotorReverse();
 
     gateState = STATE_CLOSING;
+}
+
+void finishClosing()
+{
+    Serial.println("finishClosing");
+    //restartTimer();
+    driveMotorStop();
+
+    gateState = STATE_CLOSED;
 }
