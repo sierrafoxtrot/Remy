@@ -1,34 +1,32 @@
-/*
+//  Remy - Gate Controller
+//  Copyright (C) 2018 Scott Finneran
+//
+//  Remy is free software: you can redistribute it and/or modify
+//  it under the terms of the GNU General Public License as published by
+//  the Free Software Foundation, either version 3 of the License, or
+//  (at your option) any later version.
 
-    Remy - Gate Controller
-    Copyright (C) 2018 Scott Finneran
+//  Remy is distributed in the hope that it will be useful,
+//  but WITHOUT ANY WARRANTY; without even the implied warranty of
+//  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//  GNU General Public License for more details.
 
-    Remy is free software: you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
+//  You should have received a copy of the GNU General Public License
+//  along with Remy.  If not, see <http://www.gnu.org/licenses/>.
 
-    Remy is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
+#include "project.h"
 
-    You should have received a copy of the GNU General Public License
-    along with Remy.  If not, see <http://www.gnu.org/licenses/>.
+INT16U remotePin = 4;
+INT16U pePin = 3;
+INT16U relay2Pin = 2;
+INT16U relay1Pin = 1;
+INT16U switch1_3Pin = 13;
+INT16U switch1_2Pin = 12;
+INT16U switch1_1Pin = 11;
 
- */
-
-int remotePin = 4;
-int pePin = 3;
-int relay2Pin = 2;
-int relay1Pin = 1;
-int switch1_3Pin = 13;
-int switch1_2Pin = 12;
-int switch1_1Pin = 11;
-
-int switch2_3Pin = 9;
-int switch2_2Pin = 8;
-int switch2_1Pin = 7;
+INT16U switch2_3Pin = 9;
+INT16U switch2_2Pin = 8;
+INT16U switch2_1Pin = 7;
 
 enum STATE
 {
@@ -41,24 +39,10 @@ enum STATE
 
 STATE gateState = STATE_OPEN;
 
-int mainLoopPeriodicity = 750;
+INT16U mainLoopPeriodicity = 750;
 
-unsigned long travelTimerStart = 0;
-unsigned long travelTimes[] = {4000, 8000, 12000, 16000, 20000, 24000, 28000, 32000};
-
-int Switch1()
-{
-    return ((digitalRead(switch1_3Pin) ? 4 : 0) +
-            (digitalRead(switch1_2Pin) ? 2 : 0) +
-            (digitalRead(switch1_1Pin) ? 1 : 0));
-}
-
-int Switch2()
-{
-    return ((digitalRead(switch2_3Pin) ? 4 : 0) +
-            (digitalRead(switch2_2Pin) ? 2 : 0) +
-            (digitalRead(switch2_1Pin) ? 1 : 0));
-}
+INT32U travelTimerStart = 0;
+INT32U travelTimes[] = {4000, 8000, 12000, 16000, 20000, 24000, 28000, 32000};
 
 void setup()
 {
@@ -104,18 +88,21 @@ void loop()
     Serial.print(" :  ");
     Serial.print(remotePressed(), HEX);
     Serial.print(" :  ");
-    Serial.print(peClear(), HEX);
+    Serial.print(peIsClear(), HEX);
     Serial.print(" :  ");
     Serial.print(travelOpenTime());
     Serial.print(" :  ");
     Serial.print(travelCloseTime());
 
-
-
     delay(mainLoopPeriodicity);
 
-
     Serial.println();
+
+    handleGateState();
+}
+
+void handleGateState()
+{
 
     switch (gateState)
     {
@@ -129,7 +116,7 @@ void loop()
 
     case STATE_CLOSING:
         // Run until timer expires. If PE indicates an obstruction, start opening.
-        if (!peClear())
+        if (!peIsClear())
         {
             driveMotorStop();
             delay(1000); // Delay before throwing into reverse
@@ -164,7 +151,7 @@ void loop()
         break;
 
     case STATE_OPEN:
-        if (peClear() && remotePressed())
+        if (peIsClear() && remotePressed())
         {
             startClosing();
         }
@@ -178,7 +165,7 @@ void loop()
     };
 }
 
-bool peClear()
+bool peIsClear()
 {
     return digitalRead(pePin);
 }
@@ -188,12 +175,26 @@ bool remotePressed()
     return !digitalRead(remotePin);
 }
 
-unsigned long travelOpenTime()
+INT16U Switch1()
+{
+    return ((digitalRead(switch1_3Pin) ? 4 : 0) +
+            (digitalRead(switch1_2Pin) ? 2 : 0) +
+            (digitalRead(switch1_1Pin) ? 1 : 0));
+}
+
+INT16U Switch2()
+{
+    return ((digitalRead(switch2_3Pin) ? 4 : 0) +
+            (digitalRead(switch2_2Pin) ? 2 : 0) +
+            (digitalRead(switch2_1Pin) ? 1 : 0));
+}
+
+INT32U travelOpenTime()
 {
     return travelTimes[Switch1()];
 }
 
-unsigned long travelCloseTime()
+INT32U travelCloseTime()
 {
     return travelTimes[Switch2()];
 }
