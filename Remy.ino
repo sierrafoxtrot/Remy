@@ -16,6 +16,8 @@
 
 #include "project.h"
 
+#undef REAL_BOARD
+#ifdef REAL_BOARD
 INT16U remotePin = 4;
 INT16U pePin = 3;
 INT16U relay2Pin = 2;
@@ -27,6 +29,19 @@ INT16U switch1_1Pin = 11;
 INT16U switch2_3Pin = 9;
 INT16U switch2_2Pin = 8;
 INT16U switch2_1Pin = 7;
+#else
+INT16U remotePin = 9;
+INT16U pePin = 12;
+INT16U relay2Pin = 2;
+INT16U relay1Pin = 1;
+INT16U switch1_3Pin = 3;
+INT16U switch1_2Pin = 4;
+INT16U switch1_1Pin = 5;
+
+INT16U switch2_3Pin = 6;
+INT16U switch2_2Pin = 7;
+INT16U switch2_1Pin = 8;
+#endif
 
 enum STATE
 {
@@ -37,12 +52,23 @@ enum STATE
     STATE_OPEN      = 4,
 };
 
+#define GATE_REVERSE_DELAY_MS (2000)
+
 STATE gateState = STATE_OPEN;
 
-INT16U mainLoopPeriodicity = 750;
+INT16U mainLoopPeriodicity = 20;
+INT16U loopCounter = 0;
+
+bool remotePressDetected = false;
+bool previousRemoteValue = true;
 
 INT32U travelTimerStart = 0;
+#ifdef REAL_BOARD
 INT32U travelTimes[] = {4000, 8000, 12000, 16000, 20000, 24000, 28000, 32000};
+#else
+// Hacked version with no switch attached and only pull-ups being read
+INT32U travelTimes[] = {4000, 8000, 12000, 16000, 20000, 24000, 28000, 4000};
+#endif
 
 void setup()
 {
@@ -71,11 +97,28 @@ void setup()
     pinMode(switch2_3Pin, INPUT_PULLUP);
     pinMode(switch2_2Pin, INPUT_PULLUP);
     pinMode(switch2_1Pin, INPUT_PULLUP);
+
+    previousRemoteValue = digitalRead(remotePin);
 }
 
 void loop()
 {
-    Serial.print("Remy Version 1.");
+    if ((loopCounter++ % 50) == 0)
+    {
+        showStatus();
+    }
+
+    delay(mainLoopPeriodicity);
+
+    scanInputs();
+
+    handleGateState();
+}
+
+void showStatus()
+{
+
+    Serial.print("Remy Version 1. State:");
     Serial.print(gateState);
     Serial.print(" :  ");
     Serial.print(digitalRead(relay1Pin), HEX);
@@ -86,19 +129,38 @@ void loop()
     Serial.print(" :  ");
     Serial.print(Switch2(), HEX);
     Serial.print(" :  ");
-    Serial.print(remotePressed(), HEX);
+    Serial.print(remotePressDetected, HEX);
     Serial.print(" :  ");
     Serial.print(peIsClear(), HEX);
     Serial.print(" :  ");
     Serial.print(travelOpenTime());
     Serial.print(" :  ");
     Serial.print(travelCloseTime());
-
-    delay(mainLoopPeriodicity);
-
     Serial.println();
+}
 
-    handleGateState();
+void scanInputs()
+{
+    // Schmit trigger on the board should clean up the transition but also need to debounce
+
+
+    // Look for edges (falling) on remote input
+    bool currentValue = digitalRead(remotePin);
+
+    if (previousRemoteValue && !currentValue)
+    {
+        remotePressDetected = true;
+    }
+    else
+    {
+#if 0
+        // This will be cleared on read. Would be FAR cleaner with protothreads & semaphore.
+        remotePressDetected = false;
+#endif
+    }
+
+    // Update for next loop around
+    previousRemoteValue = currentValue;
 }
 
 void handleGateState()
@@ -119,7 +181,7 @@ void handleGateState()
         if (!peIsClear())
         {
             driveMotorStop();
-            delay(1000); // Delay before throwing into reverse
+            delay(GATE_REVERSE_DELAY_MS); // Delay before throwing into reverse
             Serial.println("OBSTRUCTION - Opening");
             startOpening();
         }
@@ -131,6 +193,8 @@ void handleGateState()
 
         if (remotePressed())
         {
+            driveMotorStop();
+            delay(GATE_REVERSE_DELAY_MS); // Delay before throwing into reverse
             startOpening();
             Serial.println("INTERRUPTION - Opening");
         }
@@ -145,13 +209,16 @@ void handleGateState()
 
         if (remotePressed())
         {
+            driveMotorStop();
+            delay(GATE_REVERSE_DELAY_MS); // Delay before throwing into reverse
             startClosing();
             Serial.println("INTERRUPTION - Closing");
         }
         break;
 
     case STATE_OPEN:
-        if (peIsClear() && remotePressed())
+        // Read remote pressed state first to clear edge state if path is obstructed
+        if (remotePressed() && peIsClear())
         {
             startClosing();
         }
@@ -172,7 +239,11 @@ bool peIsClear()
 
 bool remotePressed()
 {
-    return !digitalRead(remotePin);
+    bool result = remotePressDetected;
+    remotePressDetected = false;
+
+    return result;
+//    return !digitalRead(remotePin);
 }
 
 INT16U Switch1()
