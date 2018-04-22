@@ -17,11 +17,16 @@
 #include "project.h"
 
 #undef REAL_BOARD
+#define REAL_BOARD Yep
 #ifdef REAL_BOARD
 INT16U remotePin = 4;
 INT16U pePin = 3;
 INT16U relay2Pin = 2;
 INT16U relay1Pin = 1;
+
+INT16U blueLed = 6;
+INT16U greenLed = 5;
+
 INT16U switch1_3Pin = 13;
 INT16U switch1_2Pin = 12;
 INT16U switch1_1Pin = 11;
@@ -34,6 +39,10 @@ INT16U remotePin = 9;
 INT16U pePin = 12;
 INT16U relay2Pin = 2;
 INT16U relay1Pin = 1;
+
+INT16U blueLed = 10;  // Not connected
+INT16U greenLed = 11; // Not connected
+
 INT16U switch1_3Pin = 3;
 INT16U switch1_2Pin = 4;
 INT16U switch1_1Pin = 5;
@@ -76,13 +85,21 @@ void setup()
     // start serial connection
     Serial.begin(9600);
 
-    // Signal from Merlin remote control receiver.
-    // Open collector device is attached so provide pull-up
-    pinMode(remotePin, INPUT_PULLUP);
+    // Signal from Merlin remote control receiver (remotePin)
+    // Signal from photoelectric (magic eye) sensor (pePin)
 
-    // Signal from photoelectric (magic eye) sensor
-    // Open collector device is attached so provide pull-up
+    // Output from CMOS chips no pull-ups required.
+#ifdef REAL_BOARD
+    pinMode(remotePin, INPUT);
+    pinMode(pePin, INPUT);
+#else
+    // Just a switch so needs pullups
+    pinMode(remotePin, INPUT_PULLUP);
     pinMode(pePin, INPUT_PULLUP);
+#endif
+
+    pinMode(blueLed, OUTPUT);
+    pinMode(greenLed, OUTPUT);
 
     // Motor relay control outputs
     pinMode(relay1Pin, OUTPUT);
@@ -103,6 +120,7 @@ void setup()
 
 void loop()
 {
+    // Once per second (50 * 20mSec)
     if ((loopCounter++ % 50) == 0)
     {
         showStatus();
@@ -131,12 +149,47 @@ void showStatus()
     Serial.print(" :  ");
     Serial.print(remotePressDetected, HEX);
     Serial.print(" :  ");
+    Serial.print(digitalRead(remotePin), HEX);
+    Serial.print(" :  ");
     Serial.print(peIsClear(), HEX);
     Serial.print(" :  ");
     Serial.print(travelOpenTime());
     Serial.print(" :  ");
     Serial.print(travelCloseTime());
     Serial.println();
+
+    INT8U green = LOW;
+    INT8U blue = LOW;
+
+    switch (gateState)
+    {
+    case STATE_OPEN:
+        green = HIGH;
+        blue  = LOW;
+        break;
+
+    case STATE_OPENING:
+        green = !digitalRead(greenLed);
+        blue = LOW;
+        break;
+
+    case STATE_CLOSING:
+        blue = !digitalRead(blueLed);
+        green = LOW;
+        break;
+
+    case STATE_CLOSED:
+        green = LOW;
+        blue  = HIGH;
+        break;
+
+    default:
+        Serial.print("****Unknown State****");
+        break;
+    }
+
+    digitalWrite(blueLed, blue);
+    digitalWrite(greenLed, green);
 }
 
 void scanInputs()
