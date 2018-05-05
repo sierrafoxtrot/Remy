@@ -19,37 +19,37 @@
 #undef REAL_BOARD
 #define REAL_BOARD Yep
 #ifdef REAL_BOARD
-INT16U remotePin = 4;
-INT16U pePin = 3;
-INT16U relay2Pin = 2;
-INT16U relay1Pin = 1;
+const INT16U remotePin = 4;
+const INT16U pePin = 3;
+const INT16U relay2Pin = 2;
+const INT16U relay1Pin = 1;
 
-INT16U blueLed = 6;
-INT16U greenLed = 5;
+const INT16U blueLed = 6;
+const INT16U greenLed = 5;
 
-INT16U switch1_3Pin = 13;
-INT16U switch1_2Pin = 12;
-INT16U switch1_1Pin = 11;
+const INT16U switch1_3Pin = 13;
+const INT16U switch1_2Pin = 12;
+const INT16U switch1_1Pin = 11;
 
-INT16U switch2_3Pin = 9;
-INT16U switch2_2Pin = 8;
-INT16U switch2_1Pin = 7;
+const INT16U switch2_3Pin = 9;
+const INT16U switch2_2Pin = 8;
+const INT16U switch2_1Pin = 7;
 #else
-INT16U remotePin = 9;
-INT16U pePin = 12;
-INT16U relay2Pin = 2;
-INT16U relay1Pin = 1;
+const INT16U remotePin = 9;
+const INT16U pePin = 12;
+const INT16U relay2Pin = 2;
+const INT16U relay1Pin = 1;
 
-INT16U blueLed = 10;  // Not connected
-INT16U greenLed = 11; // Not connected
+const INT16U blueLed = 10;  // Not connected
+const INT16U greenLed = 11; // Not connected
 
-INT16U switch1_3Pin = 3;
-INT16U switch1_2Pin = 4;
-INT16U switch1_1Pin = 5;
+const INT16U switch1_3Pin = 3;
+const INT16U switch1_2Pin = 4;
+const INT16U switch1_1Pin = 5;
 
-INT16U switch2_3Pin = 6;
-INT16U switch2_2Pin = 7;
-INT16U switch2_1Pin = 8;
+const INT16U switch2_3Pin = 6;
+const INT16U switch2_2Pin = 7;
+const INT16U switch2_1Pin = 8;
 #endif
 
 enum STATE
@@ -65,19 +65,25 @@ enum STATE
 
 STATE gateState = STATE_OPEN;
 
-INT16U mainLoopPeriodicity = 20;
+const INT16U mainLoopPeriodicity = 20;
 INT16U loopCounter = 0;
 
 bool remotePressDetected = false;
 bool previousRemoteValue = true;
 
 INT32U travelTimerStart = 0;
-#ifdef REAL_BOARD
-INT32U travelTimes[] = {4000, 8000, 12000, 16000, 20000, 24000, 28000, 32000};
-#else
-// Hacked version with no switch attached and only pull-ups being read
-INT32U travelTimes[] = {4000, 8000, 12000, 16000, 20000, 24000, 28000, 4000};
-#endif
+
+// Switch Patterns
+// ON  ON  ON  (000) -> (111)
+// OFF OFF ON  (001) -> (110)
+// OFF OFF ON  (010) -> (101)
+// OFF OFF ON  (011) -> (100)
+// OFF OFF ON  (100) -> (011)
+// OFF OFF ON  (101) -> (010)
+// OFF OFF ON  (110) -> (001)
+// OFF OFF OFF (111) -> (000)
+
+const INT32U travelTimes[] = {4000, 20000, 25000, 30000, 35000, 40000, 50000, 60000};
 
 void setup()
 {
@@ -88,12 +94,12 @@ void setup()
     // Signal from Merlin remote control receiver (remotePin)
     // Signal from photoelectric (magic eye) sensor (pePin)
 
-    // Output from CMOS chips no pull-ups required.
 #ifdef REAL_BOARD
+    // Output from CMOS chips no pull-ups required.
     pinMode(remotePin, INPUT);
     pinMode(pePin, INPUT);
 #else
-    // Just a switch so needs pullups
+    // Just a switch so needs pull-ups
     pinMode(remotePin, INPUT_PULLUP);
     pinMode(pePin, INPUT_PULLUP);
 #endif
@@ -192,6 +198,12 @@ void showStatus()
     digitalWrite(greenLed, green);
 }
 
+void showStallStatus()
+{
+    digitalWrite(blueLed,  HIGH);
+    digitalWrite(greenLed, HIGH);
+}
+
 void scanInputs()
 {
     // Schmit trigger on the board should clean up the transition but also need to debounce
@@ -234,6 +246,7 @@ void handleGateState()
         if (!peIsClear())
         {
             driveMotorStop();
+            showStallStatus();
             delay(GATE_REVERSE_DELAY_MS); // Delay before throwing into reverse
             Serial.println("OBSTRUCTION - Opening");
             startOpening();
@@ -287,7 +300,7 @@ void handleGateState()
 
 bool peIsClear()
 {
-    return digitalRead(pePin);
+    return !digitalRead(pePin);
 }
 
 bool remotePressed()
@@ -301,16 +314,16 @@ bool remotePressed()
 
 INT16U Switch1()
 {
-    return ((digitalRead(switch1_3Pin) ? 4 : 0) +
-            (digitalRead(switch1_2Pin) ? 2 : 0) +
-            (digitalRead(switch1_1Pin) ? 1 : 0));
+    return ((digitalRead(switch1_3Pin) ? 0 : 4) +
+            (digitalRead(switch1_2Pin) ? 0 : 2) +
+            (digitalRead(switch1_1Pin) ? 0 : 1));
 }
 
 INT16U Switch2()
 {
-    return ((digitalRead(switch2_3Pin) ? 4 : 0) +
-            (digitalRead(switch2_2Pin) ? 2 : 0) +
-            (digitalRead(switch2_1Pin) ? 1 : 0));
+    return ((digitalRead(switch2_3Pin) ? 0 : 4) +
+            (digitalRead(switch2_2Pin) ? 0 : 2) +
+            (digitalRead(switch2_1Pin) ? 0 : 1));
 }
 
 INT32U travelOpenTime()
